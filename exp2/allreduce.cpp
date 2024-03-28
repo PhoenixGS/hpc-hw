@@ -13,6 +13,33 @@ namespace ch = std::chrono;
 void Ring_Allreduce(void* sendbuf, void* recvbuf, int n, MPI_Comm comm, int comm_sz, int my_rank)
 {
     //TODO
+    int block_size = n / comm_sz;
+    for (int i = 0; i < comm_sz - 1; i++)
+    {
+        MPI_Request req[2];
+        MPI_Isend((float *)sendbuf + (my_rank + comm_sz - i) % comm_sz * block_size, block_size, MPI_FLOAT, (my_rank + 1) % comm_sz, i, MPI_COMM_WORLD, &req[0]);
+        MPI_Irecv((float *)recvbuf + (my_rank + comm_sz - i - 1) % comm_sz * block_size, block_size, MPI_FLOAT, (my_rank + comm_sz - 1) % comm_sz, i, MPI_COMM_WORLD, &req[1]);
+        MPI_Waitall(2, req, nullptr);
+        for (int j = 0; j < block_size; j++)
+        {
+            ((float *)sendbuf)[(my_rank + comm_sz - i - 1) % comm_sz * block_size + j] += ((float *)recvbuf)[(my_rank + comm_sz - i - 1) % comm_sz * block_size + j];
+        }
+    }
+    for (int i = 0; i < comm_sz - 1; i++)
+    {
+        MPI_Request req[2];
+        MPI_Isend((float *)sendbuf + (my_rank + comm_sz - i + 1) % comm_sz * block_size, block_size, MPI_FLOAT, (my_rank + 1) % comm_sz, i, MPI_COMM_WORLD, &req[0]);
+        MPI_Irecv((float *)recvbuf + (my_rank + comm_sz - i) % comm_sz * block_size, block_size, MPI_FLOAT, (my_rank + comm_sz - 1) % comm_sz, i, MPI_COMM_WORLD, &req[1]);
+        MPI_Waitall(2, req, nullptr);
+        for (int j = 0; j < block_size; j++)
+        {
+            ((float *)sendbuf)[(my_rank + comm_sz - i) % comm_sz * block_size + j] = ((float *)recvbuf)[(my_rank + comm_sz - i) % comm_sz * block_size + j];
+        }
+    }
+    for (int i = 0; i < n; i++)
+    {
+        ((float *)recvbuf)[i] = ((float *)sendbuf)[i];
+    }
 }
 
 
