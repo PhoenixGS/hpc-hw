@@ -10,27 +10,31 @@ void Worker::sort() {
     /** Your code ... */
     // you can use variables in class Worker: n, nprocs, rank, block_len, data
 
+    size_t block_size = ceiling(n, nprocs);
     int T = 0;
-    float* tmp = new float[block_len];
+    float* tmp = new float[block_size];
     float* old_data = new float[block_len];
 
     std::sort(data, data + block_len);
 
     while (T < nprocs)
     {
-        if ((T % 2 == 1) && (rank == 0 || rank == nprocs - 1))
+        int neigh = ((T % 2) == (rank % 2)) ? (rank + 1) : (rank - 1);
+        if (neigh < 0 || neigh >= nprocs)
         {
             T++;
             continue;
         }
-        int neigh = ((T % 2) == (rank % 2)) ? (rank + 1) : (rank - 1);
         int ps = ((T % 2) == (rank % 2)) ? 1 : -1;
 
         MPI_Request request[2];
-        MPI_Irecv(tmp, block_len, MPI_FLOAT, neigh, 0, MPI_COMM_WORLD, &request[1]);
+        MPI_Status status;
+        MPI_Irecv(tmp, block_size, MPI_FLOAT, neigh, 0, MPI_COMM_WORLD, &request[1]);
         memcpy(old_data, data, sizeof(float) * block_len);
         MPI_Isend(old_data, block_len, MPI_FLOAT, neigh, 0, MPI_COMM_WORLD, &request[0]);
-        MPI_Wait(&request[1], nullptr);
+        MPI_Wait(&request[1], &status);
+        int neigh_len;
+        MPI_Get_count(&status, MPI_FLOAT, &neigh_len);
 
         if (ps == 1)
         {
@@ -38,7 +42,7 @@ void Worker::sort() {
             int now = 0;
             while (now < (int)block_len)
             {
-                if (data[pt1] < tmp[pt2])
+                if (pt2 == neigh_len || data[pt1] < tmp[pt2])
                 {
                     data[now] = data[pt1];
                     pt1++;
@@ -53,7 +57,7 @@ void Worker::sort() {
         }
         else
         {
-            int pt1 = block_len - 1, pt2 = block_len - 1;
+            int pt1 = block_len - 1, pt2 = neigh_len - 1;
             int now = block_len - 1;
             while (now >= 0)
             {
