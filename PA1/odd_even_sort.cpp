@@ -16,19 +16,31 @@ void Worker::sort() {
     float* old_data = new float[block_len];
 
     std::sort(data, data + block_len);
+    int is_changed = 1;
 
     while (T < nprocs)
     {
         int neigh = ((T % 2) == (rank % 2)) ? (rank + 1) : (rank - 1);
         if (neigh < 0 || neigh >= nprocs)
         {
+            is_changed = 0;
             T++;
             continue;
         }
         int ps = ((T % 2) == (rank % 2)) ? 1 : -1;
+        int neigh_is_changed;
 
         MPI_Request request[2];
         MPI_Status status;
+        MPI_Isend(&is_changed, 1, MPI_INT, neigh, T, MPI_COMM_WORLD, &request[0]);
+        MPI_Irecv(&neigh_is_changed, 1, MPI_INT, neigh, T, MPI_COMM_WORLD, &request[1]);
+        MPI_Wait(&request[1], nullptr);
+        if (! is_changed && ! neigh_is_changed)
+        {
+            T++;
+            MPI_Wait(&request[0], nullptr);
+            continue;
+        }
         MPI_Irecv(tmp, block_size, MPI_FLOAT, neigh, T, MPI_COMM_WORLD, &request[1]);
         memcpy(old_data, data, sizeof(float) * block_len);
         MPI_Isend(old_data, block_len, MPI_FLOAT, neigh, T, MPI_COMM_WORLD, &request[0]);
@@ -36,6 +48,7 @@ void Worker::sort() {
         int neigh_len;
         MPI_Get_count(&status, MPI_FLOAT, &neigh_len);
 
+        is_changed = 0;
         if (ps == 1)
         {
             int pt1 = 0, pt2 = 0;
@@ -49,6 +62,7 @@ void Worker::sort() {
                 }
                 else
                 {
+                    is_changed = 1;
                     data[now] = tmp[pt2];
                     pt2++;
                 }
@@ -68,6 +82,7 @@ void Worker::sort() {
                 }
                 else
                 {
+                    is_changed = 1;
                     data[now] = tmp[pt2];
                     pt2--;
                 }
