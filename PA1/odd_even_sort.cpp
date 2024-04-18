@@ -29,9 +29,9 @@ void Worker::sort() {
 
         MPI_Request request[2];
         MPI_Status status;
-        MPI_Irecv(tmp, block_size, MPI_FLOAT, neigh, 0, MPI_COMM_WORLD, &request[1]);
+        MPI_Irecv(tmp, block_size, MPI_FLOAT, neigh, T, MPI_COMM_WORLD, &request[1]);
         memcpy(old_data, data, sizeof(float) * block_len);
-        MPI_Isend(old_data, block_len, MPI_FLOAT, neigh, 0, MPI_COMM_WORLD, &request[0]);
+        MPI_Isend(old_data, block_len, MPI_FLOAT, neigh, T, MPI_COMM_WORLD, &request[0]);
         MPI_Wait(&request[1], &status);
         int neigh_len;
         MPI_Get_count(&status, MPI_FLOAT, &neigh_len);
@@ -61,7 +61,7 @@ void Worker::sort() {
             int now = block_len - 1;
             while (now >= 0)
             {
-                if (data[pt1] > tmp[pt2])
+                if (pt2 < 0 || data[pt1] > tmp[pt2])
                 {
                     data[now] = data[pt1];
                     pt1--;
