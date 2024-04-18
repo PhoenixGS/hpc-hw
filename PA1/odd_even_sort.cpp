@@ -12,6 +12,7 @@ void Worker::sort() {
 
     int T = 0;
     float* tmp = new float[block_len];
+    float* old_data = new float[block_len];
 
     std::sort(data, data + block_len);
 
@@ -26,8 +27,9 @@ void Worker::sort() {
         int ps = ((T % 2) == (rank % 2)) ? 1 : -1;
 
         MPI_Request request[2];
-        MPI_Isend(data, block_len, MPI_FLOAT, neigh, 0, MPI_COMM_WORLD, &request[0]);
         MPI_Irecv(tmp, block_len, MPI_FLOAT, neigh, 0, MPI_COMM_WORLD, &request[1]);
+        memcpy(old_data, data, sizeof(float) * block_len);
+        MPI_Isend(old_data, block_len, MPI_FLOAT, neigh, 0, MPI_COMM_WORLD, &request[0]);
         MPI_Wait(&request[1], nullptr);
 
         if (ps == 1)
@@ -69,7 +71,8 @@ void Worker::sort() {
             }
         }
         T++;
+        MPI_Wait(&request[0], nullptr);
     }
-
     delete[] tmp;
+    delete[] old_data;
 }
