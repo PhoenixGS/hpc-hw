@@ -13,10 +13,13 @@ void Worker::sort() {
     size_t block_size = ceiling(n, nprocs);
     int T = 0;
     float* tmp = new float[block_size];
-    float* old_data = new float[block_len];
+    float* new_data = new float[block_len];
 
     std::sort(data, data + block_len);
 
+    MPI_Request request[2];
+    MPI_Status status;
+    int neigh_len;
     while (T < nprocs)
     {
         int neigh = ((T % 2) == (rank % 2)) ? (rank + 1) : (rank - 1);
@@ -27,13 +30,9 @@ void Worker::sort() {
         }
         int ps = ((T % 2) == (rank % 2)) ? 1 : -1;
 
-        MPI_Request request[2];
-        MPI_Status status;
         MPI_Irecv(tmp, block_size, MPI_FLOAT, neigh, T, MPI_COMM_WORLD, &request[1]);
-        memcpy(old_data, data, sizeof(float) * block_len);
-        MPI_Isend(old_data, block_len, MPI_FLOAT, neigh, T, MPI_COMM_WORLD, &request[0]);
+        MPI_Isend(data, block_len, MPI_FLOAT, neigh, T, MPI_COMM_WORLD, &request[0]);
         MPI_Wait(&request[1], &status);
-        int neigh_len;
         MPI_Get_count(&status, MPI_FLOAT, &neigh_len);
 
         if (ps == 1)
@@ -44,12 +43,12 @@ void Worker::sort() {
             {
                 if (pt2 == neigh_len || data[pt1] < tmp[pt2])
                 {
-                    data[now] = data[pt1];
+                    new_data[now] = data[pt1];
                     pt1++;
                 }
                 else
                 {
-                    data[now] = tmp[pt2];
+                    new_data[now] = tmp[pt2];
                     pt2++;
                 }
                 now++;
@@ -63,12 +62,12 @@ void Worker::sort() {
             {
                 if (pt2 < 0 || data[pt1] > tmp[pt2])
                 {
-                    data[now] = data[pt1];
+                    new_data[now] = data[pt1];
                     pt1--;
                 }
                 else
                 {
-                    data[now] = tmp[pt2];
+                    new_data[now] = tmp[pt2];
                     pt2--;
                 }
                 now--;
@@ -76,7 +75,8 @@ void Worker::sort() {
         }
         T++;
         MPI_Wait(&request[0], nullptr);
+        std::swap(data, new_data);
     }
     delete[] tmp;
-    delete[] old_data;
+    delete[] new_data;
 }
