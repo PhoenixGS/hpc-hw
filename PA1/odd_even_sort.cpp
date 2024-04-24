@@ -10,12 +10,12 @@ void Worker::sort() {
     /** Your code ... */
     // you can use variables in class Worker: n, nprocs, rank, block_len, data
 
-    size_t block_size = ceiling(n, nprocs);
+    size_t max_size = ceiling(n, nprocs); // max size of each block
     int T = 0;
-    float* tmp = new float[block_size];
-    float* new_data = new float[block_len];
+    float* tmp = new float[max_size]; // data from neighbour
+    float* new_data = new float[block_len]; // merge data and tmp
 
-    std::sort(data, data + block_len);
+    std::sort(data, data + block_len); // sort in each block
 
     MPI_Request request[2];
     MPI_Status status;
@@ -30,12 +30,12 @@ void Worker::sort() {
         }
         int ps = ((T % 2) == (rank % 2)) ? 1 : -1;
 
-        MPI_Irecv(tmp, block_size, MPI_FLOAT, neigh, T, MPI_COMM_WORLD, &request[1]);
-        MPI_Isend(data, block_len, MPI_FLOAT, neigh, T, MPI_COMM_WORLD, &request[0]);
-        MPI_Wait(&request[1], &status);
-        MPI_Get_count(&status, MPI_FLOAT, &neigh_len);
+        MPI_Irecv(tmp, max_size, MPI_FLOAT, neigh, T, MPI_COMM_WORLD, &request[1]); // receive data from neighbour
+        MPI_Isend(data, block_len, MPI_FLOAT, neigh, T, MPI_COMM_WORLD, &request[0]); // send merged data
+        MPI_Wait(&request[1], &status); 
+        MPI_Get_count(&status, MPI_FLOAT, &neigh_len); // get length of neighbour's data
 
-        if (ps == 1)
+        if (ps == 1) // merge two sorted sequence
         {
             int pt1 = 0, pt2 = 0;
             int now = 0;
@@ -77,6 +77,10 @@ void Worker::sort() {
         MPI_Wait(&request[0], nullptr);
         std::swap(data, new_data);
     }
+    // for (int i = 0; i < (int)block_len; i++)
+    // {
+    //     printf("%d %d %f\n", rank, i, data[i]);
+    // }
     delete[] tmp;
     delete[] new_data;
 }

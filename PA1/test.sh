@@ -20,10 +20,10 @@ NUM_NUMA=2
 #CORE_END=$((($NUMA_ID + 1) * $CORES_PER_PROCESS * $NUM_NUMA - $NUM_NUMA + $NUMA_OFFSET)) # eg: 12, 13, 26, 27
 #echo $LOCAL_RANK $CORE_START $CORE_END $NUMA_ID $NUMA_OFFSET
 #CORES=$(seq -s, $CORE_START $NUM_NUMA $CORE_END) # eg: 0,2,4,6,8,10,12 for rank 0
-if (( $LOCAL_RANK < 14)); then
+if (( $LOCAL_RANK < ($NCPUS / 2))); then
 CORES=$(($LOCAL_RANK * 2))
 else
-CORES=$((($LOCAL_RANK - 14) * 2 + 1))
+CORES=$((($LOCAL_RANK - $NCPUS / 2) * 2 + 1))
 fi
 # echo $LOCAL_RANK $CORES
 # execute command with specific cores
