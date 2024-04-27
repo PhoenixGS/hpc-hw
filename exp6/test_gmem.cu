@@ -3,7 +3,7 @@
 #include <iostream>
 
 // You should modify this parameter.
-#define STRIDE 1
+#define STRIDE 8
 
 __global__ void stride_copy(float *dst, float *src) {
     int i = blockIdx.x * blockDim.x + threadIdx.x;

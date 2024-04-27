@@ -4,8 +4,8 @@
 #include <iostream>
 
 // You should modify these parameters.
-#define BITWIDTH 4
-#define STRIDE 1
+#define BITWIDTH 8
+#define STRIDE 32
 
 constexpr int times = 4096;
 
