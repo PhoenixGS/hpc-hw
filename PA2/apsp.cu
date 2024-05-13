@@ -3,6 +3,9 @@
 // Brute Force APSP Implementation:
 
 #include "apsp.h"
+#include <stdio.h>
+
+const int INF = 1000000000;
 
 namespace {
 	__global__ void center(int n, int p, int * graph) {
@@ -36,7 +39,7 @@ namespace {
 		} else {
 			cent[threadIdx.x][threadIdx.y] = INF;
 		}
-		auto base_i, base_j;
+		int base_i, base_j;
 		if (blockIdx.x == 0) {
 			base_i = p * 32;
 			base_j = blockIdx.y * 32;
@@ -46,13 +49,26 @@ namespace {
 		}
 		auto i = base_i + threadIdx.x;
 		auto j = base_j + threadIdx.y;
-		if (i < n && j < n) {
+		if (blockIdx.x == 0) {
+			if (cent_i < n && j < n) {
+				dis[threadIdx.x][threadIdx.y] = graph[cent_i * n + j];
+			} else {
+				dis[threadIdx.x][threadIdx.y] = INF;
+			}
+		} else {
+			if (i < n && cent_j < n) {
+				dis[threadIdx.x][threadIdx.y] = graph[i * n + cent_j];
+			} else {
+				dis[threadIdx.x][threadIdx.y] = INF;
+			}
+		}
+		/*if (i < n && j < n) {
 			dis[threadIdx.x][threadIdx.y] = graph[i * n + j];
 		} else {
 			dis[threadIdx.x][threadIdx.y] = INF;
-		}
+		}*/
 		__syncthreads();
-		if (! (threadIdx.x == p && threadIdx.y == p)) {
+		if (blockIdx.y != p) {
 			auto minx = INF;
 			for (auto t = 0; t < 32; t++) {
 				auto k = p * 32 + t;
