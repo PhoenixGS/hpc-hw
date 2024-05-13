@@ -37,46 +37,52 @@ namespace {
 		auto cent_i = p * 32 + threadIdx.y;
 		auto cent_j = p * 32 + threadIdx.x;
 		cent[threadIdx.y][threadIdx.x] = get(graph, n, cent_i, cent_j);
-		for (int T = 0; T < 8; T++) {
-			int base_i, base_j;
-			if (blockIdx.y == 0) {
+		if (blockIdx.y == 0) {
+			for (int T = 0; T < 8; T++) {
+				int base_i, base_j;
 				base_i = p * 32;
 				base_j = (blockIdx.x * 8 + T) * 32;
-			} else {
+				auto i = base_i + threadIdx.y;
+				auto j = base_j + threadIdx.x;
+				dis[T][threadIdx.y][threadIdx.x] = get(graph, n, cent_i, j);
+			}
+		} else {
+			for (int T = 0; T < 8; T++) {
+				int base_i, base_j;
 				base_i = (blockIdx.x * 8 + T) * 32;
 				base_j = p * 32;
-			}
-			auto i = base_i + threadIdx.y;
-			auto j = base_j + threadIdx.x;
-			if (blockIdx.y == 0) {
-				dis[T][threadIdx.y][threadIdx.x] = get(graph, n, cent_i, j);
-			} else {
+				auto i = base_i + threadIdx.y;
+				auto j = base_j + threadIdx.x;
 				dis[T][threadIdx.y][threadIdx.x] = get(graph, n, i, cent_j);
 			}
 		}
 		__syncthreads();
-		for (int T = 0; T < 8; T++) {
-			int base_i, base_j;
-			if (blockIdx.y == 0) {
+		if (blockIdx.y == 0) {
+			for (int T = 0; T < 8; T++) {
+				int base_i, base_j;
 				base_i = p * 32;
 				base_j = (blockIdx.x * 8 + T) * 32;
-			} else {
-				base_i = (blockIdx.x * 8 + T) * 32;
-				base_j = p * 32;
-			}
-			auto i = base_i + threadIdx.y;
-			auto j = base_j + threadIdx.x;
-			auto minx = INF;
-			if (blockIdx.y == 0) {
+				auto i = base_i + threadIdx.y;
+				auto j = base_j + threadIdx.x;
+				auto minx = INF;
 				for (auto t = 0; t < 32; t++) {
 					minx = min(minx, cent[threadIdx.y][t] + dis[T][t][threadIdx.x]);
 				}
-			} else {
+				put(graph, n, i, j, minx);
+			}
+		} else {
+			for (int T = 0; T < 8; T++) {
+				int base_i, base_j;
+				base_i = (blockIdx.x * 8 + T) * 32;
+				base_j = p * 32;
+				auto i = base_i + threadIdx.y;
+				auto j = base_j + threadIdx.x;
+				auto minx = INF;
 				for (auto t = 0; t < 32; t++) {
 					minx = min(minx, dis[T][threadIdx.y][t] + cent[t][threadIdx.x]);
 				}
+				put(graph, n, i, j, minx);
 			}
-		put(graph, n, i, j, minx);
 		}
 	}
 
