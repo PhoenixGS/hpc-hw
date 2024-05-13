@@ -82,16 +82,17 @@ namespace {
 		}
 		__syncthreads();
 		for (int T2 = 0; T2 < 6; T2++) {
+			int crs[32];
+			for (auto t = 0; t < 32; t++) {
+				crs[t] = cross2[T2][t][threadIdx.x];
+			}
 			for (int T1 = 0; T1 < 6; T1++) {
-				auto by = blockIdx.y * 6 + T1;
-				auto bx = blockIdx.x * 6 + T2;
-				auto base_i = by * 32;
-				auto base_j = bx * 32;
-				auto i = base_i + threadIdx.y;
-				auto j = base_j + threadIdx.x;
+				auto i = (blockIdx.y * 6 + T1) * 32 + threadIdx.y;
+				auto j = (blockIdx.x * 6 + T2) * 32 + threadIdx.x;
 				auto minx = INF;
 				for (auto t = 0; t < 32; t++) {
-					minx = min(minx, cross1[T1][threadIdx.y][t] + cross2[T2][t][threadIdx.x]);
+					// minx = min(minx, cross1[T1][threadIdx.y][t] + cross2[T2][t][threadIdx.x]);
+					minx = min(minx, cross1[T1][threadIdx.y][t] + crs[t]);
 				}
 				put(graph, n, i, j, minx);
 			}
