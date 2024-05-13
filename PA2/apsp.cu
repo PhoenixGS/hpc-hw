@@ -53,17 +53,17 @@ namespace {
 			dis[threadIdx.y][threadIdx.x] = get(graph, n, i, cent_j);
 		}
 		__syncthreads();
-		if (blockIdx.x != p) {
-			auto minx = INF;
+		auto minx = INF;
+		if (blockIdx.y == 0) {
 			for (auto t = 0; t < 32; t++) {
-				if (blockIdx.y == 0) {
-					minx = min(minx, cent[threadIdx.y][t] + dis[t][threadIdx.x]);
-				} else {
-					minx = min(minx, dis[threadIdx.y][t] + cent[t][threadIdx.x]);
-				}
+				minx = min(minx, cent[threadIdx.y][t] + dis[t][threadIdx.x]);
 			}
-			put(graph, n, i, j, minx);
+		} else {
+			for (auto t = 0; t < 32; t++) {
+				minx = min(minx, dis[threadIdx.y][t] + cent[t][threadIdx.x]);
+			}
 		}
+		put(graph, n, i, j, minx);
 	}
 
 	__global__ void whole(int n, int p, int *graph) {
@@ -80,13 +80,11 @@ namespace {
 		auto i = base_i + threadIdx.y;
 		auto j = base_j + threadIdx.x;
 		__syncthreads();
-		if (blockIdx.y != p && blockIdx.x != p) {
-			auto minx = INF;
-			for (auto t = 0; t < 32; t++) {
-				minx = min(minx, cross1[threadIdx.y][t] + cross2[t][threadIdx.x]);
-			}
-			put(graph, n, i, j, minx);
+		auto minx = INF;
+		for (auto t = 0; t < 32; t++) {
+			minx = min(minx, cross1[threadIdx.y][t] + cross2[t][threadIdx.x]);
 		}
+		put(graph, n, i, j, minx);
 	}
 }
 
