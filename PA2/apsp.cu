@@ -81,8 +81,8 @@ namespace {
 			cross2[T][threadIdx.y][threadIdx.x] = get(graph, n, cross2_i, cross2_j);
 		}
 		__syncthreads();
-		for (int T1 = 0; T1 < 6; T1++) {
-			for (int T2 = 0; T2 < 6; T2++) {
+		for (int T2 = 0; T2 < 6; T2++) {
+			for (int T1 = 0; T1 < 6; T1++) {
 				auto by = blockIdx.y * 6 + T1;
 				auto bx = blockIdx.x * 6 + T2;
 				auto base_i = by * 32;
