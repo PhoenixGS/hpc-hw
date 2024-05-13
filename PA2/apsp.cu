@@ -8,25 +8,27 @@
 const int INF = 1000000000;
 
 namespace {
+	__device__ int get(int * graph, int n, int i, int j) {
+		return (i < n && j < n) ? graph[i * n + j] : INF;
+	}
+
+	__device__ void put(int * graph, int n, int i, int j, int minx) {
+		if (i >= n) return;
+		if (j >= n) return;
+		graph[i * n + j] = min(graph[i * n + j], minx);
+	}
+
 	__global__ void center(int n, int p, int * graph) {
 		__shared__ int dis[32][32];
 		auto i = p * 32 + threadIdx.y;
 		auto j = p * 32 + threadIdx.x;
-		if (i < n && j < n) {
-			dis[threadIdx.y][threadIdx.x] = graph[i * n + j];
-		} else {
-			dis[threadIdx.y][threadIdx.x] = INF;
-		}
+		dis[threadIdx.y][threadIdx.x] = get(graph, n, i, j);
 		__syncthreads();
 		auto minx = INF;
 		for (int k = 0; k < 32; k++) {
-			if (threadIdx.y != k && threadIdx.x != k) {
-				minx = min(minx, dis[threadIdx.y][k] + dis[k][threadIdx.x]);
-			}
+			minx = min(minx, dis[threadIdx.y][k] + dis[k][threadIdx.x]);
 		}
-		if (i < n && j < n) {
-			graph[i * n + j] = min(graph[i * n + j], minx);
-		}
+		put(graph, n, i, j, minx);
 	}
 
 	__global__ void cross(int n, int p, int *graph) {
@@ -34,11 +36,7 @@ namespace {
 		__shared__ int dis[32][32];
 		auto cent_i = p * 32 + threadIdx.y;
 		auto cent_j = p * 32 + threadIdx.x;
-		if (cent_i < n && cent_j < n) {
-			cent[threadIdx.y][threadIdx.x] = graph[cent_i * n + cent_j];
-		} else {
-			cent[threadIdx.y][threadIdx.x] = INF;
-		}
+		cent[threadIdx.y][threadIdx.x] = get(graph, n, cent_i, cent_j);
 		int base_i, base_j;
 		if (blockIdx.y == 0) {
 			base_i = p * 32;
@@ -50,34 +48,21 @@ namespace {
 		auto i = base_i + threadIdx.y;
 		auto j = base_j + threadIdx.x;
 		if (blockIdx.y == 0) {
-			if (cent_i < n && j < n) {
-				dis[threadIdx.y][threadIdx.x] = graph[cent_i * n + j];
-			} else {
-				dis[threadIdx.y][threadIdx.x] = INF;
-			}
+			dis[threadIdx.y][threadIdx.x] = get(graph, n, cent_i, j);
 		} else {
-			if (i < n && cent_j < n) {
-				dis[threadIdx.y][threadIdx.x] = graph[i * n + cent_j];
-			} else {
-				dis[threadIdx.y][threadIdx.x] = INF;
-			}
+			dis[threadIdx.y][threadIdx.x] = get(graph, n, i, cent_j);
 		}
 		__syncthreads();
 		if (blockIdx.x != p) {
 			auto minx = INF;
 			for (auto t = 0; t < 32; t++) {
-				auto k = p * 32 + t;
-				if (i != k && j != k) {
-					if (blockIdx.y == 0) {
-						minx = min(minx, cent[threadIdx.y][t] + dis[t][threadIdx.x]);
-					} else {
-						minx = min(minx, dis[threadIdx.y][t] + cent[t][threadIdx.x]);
-					}
+				if (blockIdx.y == 0) {
+					minx = min(minx, cent[threadIdx.y][t] + dis[t][threadIdx.x]);
+				} else {
+					minx = min(minx, dis[threadIdx.y][t] + cent[t][threadIdx.x]);
 				}
 			}
-			if (i < n && j < n) {
-				graph[i * n + j] = min(graph[i * n + j], minx);
-			}
+			put(graph, n, i, j, minx);
 		}
 	}
 
@@ -90,30 +75,17 @@ namespace {
 		auto cross1_j = p * 32 + threadIdx.x;
 		auto cross2_i = p * 32 + threadIdx.y;
 		auto cross2_j = blockIdx.x * 32 + threadIdx.x;
-		if (cross1_i < n && cross1_j < n) {
-			cross1[threadIdx.y][threadIdx.x] = graph[cross1_i * n + cross1_j];
-		} else {
-			cross1[threadIdx.y][threadIdx.x] = INF;
-		}
-		if (cross2_i < n && cross2_j < n) {
-			cross2[threadIdx.y][threadIdx.x] = graph[cross2_i * n + cross2_j];
-		} else {
-			cross2[threadIdx.y][threadIdx.x] = INF;
-		}
+		cross1[threadIdx.y][threadIdx.x] = get(graph, n, cross1_i, cross1_j);
+		cross2[threadIdx.y][threadIdx.x] = get(graph, n, cross2_i, cross2_j);
 		auto i = base_i + threadIdx.y;
 		auto j = base_j + threadIdx.x;
 		__syncthreads();
 		if (blockIdx.y != p && blockIdx.x != p) {
 			auto minx = INF;
 			for (auto t = 0; t < 32; t++) {
-				auto k = p * 32 + t;
-				if (i != k && j != k) {
-					minx = min(minx, cross1[threadIdx.y][t] + cross2[t][threadIdx.x]);
-				}
+				minx = min(minx, cross1[threadIdx.y][t] + cross2[t][threadIdx.x]);
 			}
-			if (i < n && j < n) {
-				graph[i * n + j] = min(graph[i * n + j], minx);
-			}
+			put(graph, n, i, j, minx);
 		}
 	}
 }
