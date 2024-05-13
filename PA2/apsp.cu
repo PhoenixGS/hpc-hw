@@ -70,6 +70,12 @@ namespace {
 		put(graph, n, i, j, minx);
 	}
 
+	__device__ void swap(int *x, int *y) {
+		int t = *x;
+		*x = *y;
+		*y = t;
+	}
+
 	__global__ void whole(int n, int p, int *graph) {
 		__shared__ int cross1[6][32][32];
 		__shared__ int cross2[6][32][32];
@@ -85,6 +91,12 @@ namespace {
 			cross2[T][threadIdx.y][threadIdx.x] = get(graph, n, cross2_i, cross2_j);
 		}
 		__syncthreads();
+		if (threadIdx.x < threadIdx.y) {
+			for (int T = 0; T < 6; T++) {
+				swap(&cross1[T][threadIdx.x][threadIdx.y], &cross1[T][threadIdx.y][threadIdx.x]);
+			}
+		}
+		__syncthreads();
 		if ((blockIdx.y + 1) * 6 * 32 <= n && (blockIdx.x + 1) * 6 * 32 <= n) {
 			for (int T2 = 0; T2 < 6; T2++) {
 				for (int T1 = 0; T1 < 6; T1++) {
@@ -96,7 +108,7 @@ namespace {
 					auto j = base_j + threadIdx.x;
 					auto minx = INF;
 					for (auto t = 0; t < 32; t++) {
-						minx = min(minx, cross1[T1][threadIdx.y][t] + cross2[T2][t][threadIdx.x]);
+						minx = min(minx, cross1[T1][t][threadIdx.y] + cross2[T2][t][threadIdx.x]);
 					}
 					put_without_if(graph, n, i, j, minx);
 				}
@@ -112,7 +124,7 @@ namespace {
 					auto j = base_j + threadIdx.x;
 					auto minx = INF;
 					for (auto t = 0; t < 32; t++) {
-						minx = min(minx, cross1[T1][threadIdx.y][t] + cross2[T2][t][threadIdx.x]);
+						minx = min(minx, cross1[T1][t][threadIdx.y] + cross2[T2][t][threadIdx.x]);
 					}
 					put(graph, n, i, j, minx);
 				}
