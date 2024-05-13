@@ -67,24 +67,35 @@ namespace {
 	}
 
 	__global__ void whole(int n, int p, int *graph) {
-		__shared__ int cross1[32][32];
-		__shared__ int cross2[32][32];
-		auto base_i = blockIdx.y * 32;
-		auto base_j = blockIdx.x * 32;
-		auto cross1_i = blockIdx.y * 32 + threadIdx.y;
-		auto cross1_j = p * 32 + threadIdx.x;
-		auto cross2_i = p * 32 + threadIdx.y;
-		auto cross2_j = blockIdx.x * 32 + threadIdx.x;
-		cross1[threadIdx.y][threadIdx.x] = get(graph, n, cross1_i, cross1_j);
-		cross2[threadIdx.y][threadIdx.x] = get(graph, n, cross2_i, cross2_j);
-		auto i = base_i + threadIdx.y;
-		auto j = base_j + threadIdx.x;
-		__syncthreads();
-		auto minx = INF;
-		for (auto t = 0; t < 32; t++) {
-			minx = min(minx, cross1[threadIdx.y][t] + cross2[t][threadIdx.x]);
+		__shared__ int cross1[6][32][32];
+		__shared__ int cross2[6][32][32];
+		for (int T = 0; T < 6; T++)
+		{
+			auto cross1_i = (blockIdx.y * 6 + T) * 32 + threadIdx.y;
+			auto cross1_j = p * 32 + threadIdx.x;
+			cross1[T][threadIdx.y][threadIdx.x] = get(graph, n, cross1_i, cross1_j);
 		}
-		put(graph, n, i, j, minx);
+		for (int T = 0; T < 6; T++) {
+			auto cross2_i = p * 32 + threadIdx.y;
+			auto cross2_j = (blockIdx.x * 6 + T) * 32 + threadIdx.x;
+			cross2[T][threadIdx.y][threadIdx.x] = get(graph, n, cross2_i, cross2_j);
+		}
+		__syncthreads();
+		for (int T1 = 0; T1 < 6; T1++) {
+			for (int T2 = 0; T2 < 6; T2++) {
+				auto by = blockIdx.y * 6 + T1;
+				auto bx = blockIdx.x * 6 + T2;
+				auto base_i = by * 32;
+				auto base_j = bx * 32;
+				auto i = base_i + threadIdx.y;
+				auto j = base_j + threadIdx.x;
+				auto minx = INF;
+				for (auto t = 0; t < 32; t++) {
+					minx = min(minx, cross1[T1][threadIdx.y][t] + cross2[T2][t][threadIdx.x]);
+				}
+				put(graph, n, i, j, minx);
+			}
+		}
 	}
 }
 
@@ -94,9 +105,8 @@ void apsp(int n, /* device */ int *graph) {
 		center<<<1, thr>>>(n, p, graph);
 		dim3 blk((n - 1) / 32 + 1, 2);
 		cross<<<blk, thr>>>(n, p, graph);
-		dim3 blk2((n - 1) / 32 + 1, (n - 1) / 32 + 1);
+		dim3 blk2((n - 1) / 32 / 6 + 1, (n - 1) / 32 / 6 + 1);
 		whole<<<blk2, thr>>>(n, p, graph);
-		auto time_4 = time(nullptr);
 	}
 }
 
