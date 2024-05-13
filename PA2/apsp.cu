@@ -5,8 +5,6 @@
 #include "apsp.h"
 
 namespace {
-
-	// calc in the center block
 	__global__ void center(int n, int p, int * graph) {
 		__shared__ int dis[32][32];
 		auto i = p * 32 + threadIdx.x;
@@ -58,7 +56,7 @@ namespace {
 			auto minx = INF;
 			for (auto t = 0; t < 32; t++) {
 				auto k = p * 32 + t;
-				if (i != p && j != p) {
+				if (i != k && j != k) {
 					if (blockIdx.x == 0) {
 						minx = min(minx, cent[threadIdx.x][t] + dis[t][threadIdx.y]);
 					} else {
@@ -73,7 +71,39 @@ namespace {
 	}
 
 	__global__ void whole(int n, int p, int *graph) {
-		
+		__shared__ int cross1[32][32];
+		__shared__ int cross2[32][32];
+		auto base_i = blockIdx.x * 32;
+		auto base_j = blockIdx.y * 32;
+		auto cross1_i = blockIdx.x * 32 + threadIdx.x;
+		auto cross1_j = p * 32 + threadIdx.y;
+		auto cross2_i = p * 32 + threadIdx.x;
+		auto cross2_j = blockIdx.y * 32 + threadIdx.y;
+		if (cross1_i < n && cross1_j < n) {
+			cross1[threadIdx.x][threadIdx.y] = graph[cross1_i * n + cross1_j];
+		} else {
+			cross1[threadIdx.x][threadIdx.y] = INF;
+		}
+		if (cross2_i < n && cross2_j < n) {
+			cross2[threadIdx.x][threadIdx.y] = graph[cross2_i * n + cross2_j];
+		} else {
+			cross2[threadIdx.x][threadIdx.y] = INF;
+		}
+		auto i = base_i + threadIdx.x;
+		auto j = base_j + threadIdx.y;
+		__syncthreads();
+		if (blockIdx.x != p && blockIdx.y != p) {
+			auto minx = INF;
+			for (auto t = 0; t < 32; t++) {
+				auto k = p * 32 + t;
+				if (i != k && j != k) {
+					minx = min(minx, cross1[threadIdx.x][t] + cross2[t][threadIdx.y]);
+				}
+			}
+			if (i < n && j < n) {
+				graph[i * n + j] = min(graph[i * n + j], minx);
+			}
+		}
 	}
 
 	__global__ void kernel(int n, int k, int *graph) {
