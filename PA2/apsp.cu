@@ -12,6 +12,10 @@ namespace {
 		return (i < n && j < n) ? graph[i * n + j] : INF;
 	}
 
+	__device__ void put_without_if(int * graph, int n, int i, int j, int minx) {
+		graph[i * n + j] = min(graph[i * n + j], minx);
+	}
+
 	__device__ void put(int * graph, int n, int i, int j, int minx) {
 		if (i >= n) return;
 		if (j >= n) return;
@@ -101,19 +105,37 @@ namespace {
 			cross2[T][threadIdx.y][threadIdx.x] = get(graph, n, cross2_i, cross2_j);
 		}
 		__syncthreads();
-		for (int T2 = 0; T2 < 6; T2++) {
-			for (int T1 = 0; T1 < 6; T1++) {
-				auto by = blockIdx.y * 6 + T1;
-				auto bx = blockIdx.x * 6 + T2;
-				auto base_i = by * 32;
-				auto base_j = bx * 32;
-				auto i = base_i + threadIdx.y;
-				auto j = base_j + threadIdx.x;
-				auto minx = INF;
-				for (auto t = 0; t < 32; t++) {
-					minx = min(minx, cross1[T1][threadIdx.y][t] + cross2[T2][t][threadIdx.x]);
+		if ((blockIdx.y + 1) * 6 * 32 <= n && (blockIdx.x + 1) * 6 * 32 <= n) {
+			for (int T2 = 0; T2 < 6; T2++) {
+				for (int T1 = 0; T1 < 6; T1++) {
+					auto by = blockIdx.y * 6 + T1;
+					auto bx = blockIdx.x * 6 + T2;
+					auto base_i = by * 32;
+					auto base_j = bx * 32;
+					auto i = base_i + threadIdx.y;
+					auto j = base_j + threadIdx.x;
+					auto minx = INF;
+					for (auto t = 0; t < 32; t++) {
+						minx = min(minx, cross1[T1][threadIdx.y][t] + cross2[T2][t][threadIdx.x]);
+					}
+					put_without_if(graph, n, i, j, minx);
 				}
-				put(graph, n, i, j, minx);
+			}
+		} else {
+			for (int T2 = 0; T2 < 6; T2++) {
+				for (int T1 = 0; T1 < 6; T1++) {
+					auto by = blockIdx.y * 6 + T1;
+					auto bx = blockIdx.x * 6 + T2;
+					auto base_i = by * 32;
+					auto base_j = bx * 32;
+					auto i = base_i + threadIdx.y;
+					auto j = base_j + threadIdx.x;
+					auto minx = INF;
+					for (auto t = 0; t < 32; t++) {
+						minx = min(minx, cross1[T1][threadIdx.y][t] + cross2[T2][t][threadIdx.x]);
+					}
+					put(graph, n, i, j, minx);
+				}
 			}
 		}
 	}
