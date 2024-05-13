@@ -33,7 +33,7 @@ namespace {
 
 	__global__ void cross(int n, int p, int *graph) {
 		__shared__ int cent[32][32];
-		__shared__ int dis[8][32][32];
+		__shared__ int dis[32][32][8];
 		auto cent_i = p * 32 + threadIdx.y;
 		auto cent_j = p * 32 + threadIdx.x;
 		cent[threadIdx.y][threadIdx.x] = get(graph, n, cent_i, cent_j);
@@ -49,12 +49,26 @@ namespace {
 			auto i = base_i + threadIdx.y;
 			auto j = base_j + threadIdx.x;
 			if (blockIdx.y == 0) {
-				dis[T][threadIdx.y][threadIdx.x] = get(graph, n, cent_i, j);
+				dis[threadIdx.y][threadIdx.x][T] = get(graph, n, cent_i, j);
 			} else {
-				dis[T][threadIdx.y][threadIdx.x] = get(graph, n, i, cent_j);
+				dis[threadIdx.y][threadIdx.x][T] = get(graph, n, i, cent_j);
 			}
 		}
 		__syncthreads();
+		int minx[8] = {INF, INF, INF, INF, INF, INF, INF, INF};
+		for (auto t = 0; t < 32; t++) {
+			for (int T = 0; T < 8; T++) {
+				if (blockIdx.y == 0) {
+					for (auto t = 0; t < 32; t++) {
+						minx[T] = min(minx[T], cent[threadIdx.y][t] + dis[t][threadIdx.x][T]);
+					}
+				} else {
+					for (auto t = 0; t < 32; t++) {
+						minx[T] = min(minx[T], dis[threadIdx.y][t][T] + cent[t][threadIdx.x]);
+					}
+				}
+			}
+		}
 		for (int T = 0; T < 8; T++) {
 			int base_i, base_j;
 			if (blockIdx.y == 0) {
@@ -66,17 +80,7 @@ namespace {
 			}
 			auto i = base_i + threadIdx.y;
 			auto j = base_j + threadIdx.x;
-			auto minx = INF;
-			if (blockIdx.y == 0) {
-				for (auto t = 0; t < 32; t++) {
-					minx = min(minx, cent[threadIdx.y][t] + dis[T][t][threadIdx.x]);
-				}
-			} else {
-				for (auto t = 0; t < 32; t++) {
-					minx = min(minx, dis[T][threadIdx.y][t] + cent[t][threadIdx.x]);
-				}
-			}
-		put(graph, n, i, j, minx);
+			put(graph, n, i, j, minx[T]);
 		}
 	}
 
