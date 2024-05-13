@@ -62,11 +62,6 @@ namespace {
 				dis[threadIdx.y][threadIdx.x] = INF;
 			}
 		}
-		/*if (i < n && j < n) {
-			dis[threadIdx.y][threadIdx.x] = graph[i * n + j];
-		} else {
-			dis[threadIdx.y][threadIdx.x] = INF;
-		}*/
 		__syncthreads();
 		if (blockIdx.x != p) {
 			auto minx = INF;
