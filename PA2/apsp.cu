@@ -3,132 +3,132 @@
 // Brute Force APSP Implementation:
 
 #include "apsp.h"
+#include <stdio.h>
+
+const int INF = 1000000000;
 
 namespace {
+	__device__ int get(int * graph, int n, int i, int j) {
+		return (i < n && j < n) ? graph[i * n + j] : INF;
+	}
+
+	__device__ void put_without_if(int * graph, int n, int i, int j, int minx) {
+		graph[i * n + j] = min(graph[i * n + j], minx);
+	}
+
+	__device__ void put(int * graph, int n, int i, int j, int minx) {
+		if (i >= n) return;
+		if (j >= n) return;
+		graph[i * n + j] = min(graph[i * n + j], minx);
+	}
+
 	__global__ void center(int n, int p, int * graph) {
 		__shared__ int dis[32][32];
-		auto i = p * 32 + threadIdx.x;
-		auto j = p * 32 + threadIdx.y;
-		if (i < n && j < n) {
-			dis[threadIdx.x][threadIdx.y] = graph[i * n + j];
-		} else {
-			dis[threadIdx.x][threadIdx.y] = INF;
-		}
+		auto i = p * 32 + threadIdx.y;
+		auto j = p * 32 + threadIdx.x;
+		dis[threadIdx.y][threadIdx.x] = get(graph, n, i, j);
 		__syncthreads();
 		auto minx = INF;
 		for (int k = 0; k < 32; k++) {
-			if (threadIdx.x != k && threadIdx.y != k) {
-				minx = min(minx, dis[threadIdx.x][k] + dis[k][threadIdx.y]);
-			}
+			minx = min(minx, dis[threadIdx.y][k] + dis[k][threadIdx.x]);
 		}
-		if (i < n && j < n) {
-			graph[i * n + j] = min(graph[i * n + j], minx);
-		}
+		put(graph, n, i, j, minx);
 	}
 
 	__global__ void cross(int n, int p, int *graph) {
 		__shared__ int cent[32][32];
 		__shared__ int dis[32][32];
-		auto cent_i = p * 32 + threadIdx.x;
-		auto cent_j = p * 32 + threadIdx.y;
-		if (cent_i < n && cent_j < n) {
-			cent[threadIdx.x][threadIdx.y] = graph[cent_i * n + cent_j];
-		} else {
-			cent[threadIdx.x][threadIdx.y] = INF;
-		}
-		auto base_i, base_j;
-		if (blockIdx.x == 0) {
+		auto cent_i = p * 32 + threadIdx.y;
+		auto cent_j = p * 32 + threadIdx.x;
+		cent[threadIdx.y][threadIdx.x] = get(graph, n, cent_i, cent_j);
+		int base_i, base_j;
+		if (blockIdx.y == 0) {
 			base_i = p * 32;
-			base_j = blockIdx.y * 32;
+			base_j = blockIdx.x * 32;
 		} else {
-			base_i = blockIdx.y * 32;
+			base_i = blockIdx.x * 32;
 			base_j = p * 32;
 		}
-		auto i = base_i + threadIdx.x;
-		auto j = base_j + threadIdx.y;
-		if (i < n && j < n) {
-			dis[threadIdx.x][threadIdx.y] = graph[i * n + j];
+		auto i = base_i + threadIdx.y;
+		auto j = base_j + threadIdx.x;
+		if (blockIdx.y == 0) {
+			dis[threadIdx.y][threadIdx.x] = get(graph, n, cent_i, j);
 		} else {
-			dis[threadIdx.x][threadIdx.y] = INF;
+			dis[threadIdx.y][threadIdx.x] = get(graph, n, i, cent_j);
 		}
 		__syncthreads();
-		if (! (threadIdx.x == p && threadIdx.y == p)) {
-			auto minx = INF;
+		auto minx = INF;
+		if (blockIdx.y == 0) {
 			for (auto t = 0; t < 32; t++) {
-				auto k = p * 32 + t;
-				if (i != k && j != k) {
-					if (blockIdx.x == 0) {
-						minx = min(minx, cent[threadIdx.x][t] + dis[t][threadIdx.y]);
-					} else {
-						minx = min(minx, dis[threadIdx.x][t] + cent[t][threadIdx.y]);
-					}
-				}
+				minx = min(minx, cent[threadIdx.y][t] + dis[t][threadIdx.x]);
 			}
-			if (i < n && j < n) {
-				graph[i * n + j] = min(graph[i * n + j], minx);
+		} else {
+			for (auto t = 0; t < 32; t++) {
+				minx = min(minx, dis[threadIdx.y][t] + cent[t][threadIdx.x]);
 			}
 		}
+		put(graph, n, i, j, minx);
 	}
 
 	__global__ void whole(int n, int p, int *graph) {
-		__shared__ int cross1[32][32];
-		__shared__ int cross2[32][32];
-		auto base_i = blockIdx.x * 32;
-		auto base_j = blockIdx.y * 32;
-		auto cross1_i = blockIdx.x * 32 + threadIdx.x;
-		auto cross1_j = p * 32 + threadIdx.y;
-		auto cross2_i = p * 32 + threadIdx.x;
-		auto cross2_j = blockIdx.y * 32 + threadIdx.y;
-		if (cross1_i < n && cross1_j < n) {
-			cross1[threadIdx.x][threadIdx.y] = graph[cross1_i * n + cross1_j];
-		} else {
-			cross1[threadIdx.x][threadIdx.y] = INF;
+		__shared__ int cross1[6][32][32];
+		__shared__ int cross2[6][32][32];
+		for (int T = 0; T < 6; T++)
+		{
+			auto cross1_i = (blockIdx.y * 6 + T) * 32 + threadIdx.y;
+			auto cross1_j = p * 32 + threadIdx.x;
+			cross1[T][threadIdx.y][threadIdx.x] = get(graph, n, cross1_i, cross1_j);
 		}
-		if (cross2_i < n && cross2_j < n) {
-			cross2[threadIdx.x][threadIdx.y] = graph[cross2_i * n + cross2_j];
-		} else {
-			cross2[threadIdx.x][threadIdx.y] = INF;
+		for (int T = 0; T < 6; T++) {
+			auto cross2_i = p * 32 + threadIdx.y;
+			auto cross2_j = (blockIdx.x * 6 + T) * 32 + threadIdx.x;
+			cross2[T][threadIdx.y][threadIdx.x] = get(graph, n, cross2_i, cross2_j);
 		}
-		auto i = base_i + threadIdx.x;
-		auto j = base_j + threadIdx.y;
 		__syncthreads();
-		if (blockIdx.x != p && blockIdx.y != p) {
-			auto minx = INF;
-			for (auto t = 0; t < 32; t++) {
-				auto k = p * 32 + t;
-				if (i != k && j != k) {
-					minx = min(minx, cross1[threadIdx.x][t] + cross2[t][threadIdx.y]);
+		if ((blockIdx.y + 1) * 6 * 32 <= n && (blockIdx.x + 1) * 6 * 32 <= n) {
+			for (int T2 = 0; T2 < 6; T2++) {
+				for (int T1 = 0; T1 < 6; T1++) {
+					auto by = blockIdx.y * 6 + T1;
+					auto bx = blockIdx.x * 6 + T2;
+					auto base_i = by * 32;
+					auto base_j = bx * 32;
+					auto i = base_i + threadIdx.y;
+					auto j = base_j + threadIdx.x;
+					auto minx = INF;
+					for (auto t = 0; t < 32; t++) {
+						minx = min(minx, cross1[T1][threadIdx.y][t] + cross2[T2][t][threadIdx.x]);
+					}
+					put_without_if(graph, n, i, j, minx);
 				}
 			}
-			if (i < n && j < n) {
-				graph[i * n + j] = min(graph[i * n + j], minx);
+		} else {
+			for (int T2 = 0; T2 < 6; T2++) {
+				for (int T1 = 0; T1 < 6; T1++) {
+					auto by = blockIdx.y * 6 + T1;
+					auto bx = blockIdx.x * 6 + T2;
+					auto base_i = by * 32;
+					auto base_j = bx * 32;
+					auto i = base_i + threadIdx.y;
+					auto j = base_j + threadIdx.x;
+					auto minx = INF;
+					for (auto t = 0; t < 32; t++) {
+						minx = min(minx, cross1[T1][threadIdx.y][t] + cross2[T2][t][threadIdx.x]);
+					}
+					put(graph, n, i, j, minx);
+				}
 			}
 		}
 	}
-
-	__global__ void kernel(int n, int k, int *graph) {
-		auto i = blockIdx.y * blockDim.y + threadIdx.y;
-		auto j = blockIdx.x * blockDim.x + threadIdx.x;
-		if (i < n && j < n && i != k && j != k) {
-			graph[i * n + j] = min(graph[i * n + j], graph[i * n + k] + graph[k * n + j]);
-		}
-	}
-
 }
 
 void apsp(int n, /* device */ int *graph) {
 	for (int p = 0; p < (n - 1) / 32 + 1; p++) {
 		dim3 thr(32, 32);
 		center<<<1, thr>>>(n, p, graph);
-		dim3 blk(2, (n - 1) / 32 + 1);
+		dim3 blk((n - 1) / 32 + 1, 2);
 		cross<<<blk, thr>>>(n, p, graph);
-		dim3 blk2((n - 1) / 32 + 1, (n - 1) / 32 + 1);
+		dim3 blk2((n - 1) / 32 / 6 + 1, (n - 1) / 32 / 6 + 1);
 		whole<<<blk2, thr>>>(n, p, graph);
 	}
-    /*for (int k = 0; k < n; k++) {
-        dim3 thr(32, 32);
-        dim3 blk((n - 1) / 32 + 1, (n - 1) / 32 + 1);
-        kernel<<<blk, thr>>>(n, k, graph);
-    }*/
 }
 
