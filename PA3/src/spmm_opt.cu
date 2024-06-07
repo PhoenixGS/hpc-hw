@@ -2,29 +2,36 @@
 
 __global__ void spmm_kernel_placeholder(int *ptr, int *idx, float *val, float *vin, float *vout, int num_v, int INFEATURE)
 {
-    int tid = blockIdx.x * blockDim.x + threadIdx.x;
-    if (tid >= num_v) return;
-    int begin = ptr[tid], end = ptr[tid + 1];
-    for (int j = 0; j < INFEATURE; ++j)
+    __shared__ int shared_idx[32];
+    __shared__ float shared_val[32];
+    float ans = 0.0;
+    int indx = blockIdx.x;
+    int indy = blockIdx.y * 32 + threadIdx.x;
+    int begin = ptr[indx], end = ptr[indx + 1];
+    for (int now = begin; now < end; now += 32)
     {
-        float result = 0.0f;
-        for (int i = begin; i < end; ++i)
+        if (now + threadIdx.x < end)
         {
-            result += vin[idx[i] * INFEATURE + j] * val[i];
+            shared_idx[threadIdx.x] = idx[now + threadIdx.x];
+            shared_val[threadIdx.x] = val[now + threadIdx.x];
         }
-        vout[tid * INFEATURE + j] = result;
+        __syncthreads();
+        for (int i = 0; i < 32 && now + i < end; i++)
+        {
+            ans += shared_val[i] * vin[shared_idx[i] * INFEATURE + indy];
+        }
     }
+    vout[indx * INFEATURE + indy] = ans;
 }
 void SpMMOpt::preprocess(float *vin, float *vout)
 {
-    // TODO: your code
-    int BLOCK_SIZE = 128;
-    grid.x = (num_v + BLOCK_SIZE - 1) / BLOCK_SIZE;
-    block.x = BLOCK_SIZE;
+    int WARP_SIZE = 32;
+    grid.x = num_v;
+    grid.y = (feat_in + WARP_SIZE - 1) / WARP_SIZE;
+    block.x = WARP_SIZE;
 }
 
 void SpMMOpt::run(float *vin, float *vout)
 {
-    // TODO: your code
     spmm_kernel_placeholder<<<grid, block>>>(d_ptr, d_idx, d_val, vin, vout, num_v, feat_in);
 }
