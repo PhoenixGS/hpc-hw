@@ -1,12 +1,13 @@
 #include "spmm_opt.h"
 
 const int C = 1;
+const int D = 4;
 const int SPLIT_SIZE = 256;
 
 __global__ void spmm_kernel_placeholder(int *ptr, int *idx, float *val, float *vin, float *vout, int *target, int *ptr_scheduled, int num_v, int INFEATURE)
 {
-    __shared__ int shared_idx[32];
-    __shared__ float shared_val[32];
+    __shared__ int shared_idx[32][D];
+    __shared__ float shared_val[32][D];
     float ans[C];
     for (int i = 0; i < C; i++)
     {
@@ -16,21 +17,27 @@ __global__ void spmm_kernel_placeholder(int *ptr, int *idx, float *val, float *v
     int indy = blockIdx.y * 32 * C + threadIdx.x;
 	// int begin = ptr[indx], end = ptr[indx + 1];
 	int begin = ptr_scheduled[indx], end = ptr_scheduled[indx + 1];
-	for (int now = begin; now < end; now += 32)
+	for (int now = begin; now < end; now += 32 * D)
     {
-        if (now + threadIdx.x < end)
-        {
-			shared_idx[threadIdx.x] = idx[now + threadIdx.x];
-			shared_val[threadIdx.x] = val[now + threadIdx.x];
-        }
+		for (int k = 0; k < D; k++)
+		{
+			if (now + threadIdx.x + k * 32 < end)
+			{
+				shared_idx[threadIdx.x][k] = idx[now + threadIdx.x + k * 32];
+				shared_val[threadIdx.x][k] = val[now + threadIdx.x + k * 32];
+			}
+		}
         __syncthreads();
-        for (int i = 0; i < 32 && now + i < end; i++)
-        {
-            for (int j = 0; j < C; j++)
-            {
-                ans[j] += shared_val[i] * vin[shared_idx[i] * INFEATURE + indy + j * 32];
-            }
-        }
+		for (int k = 0; k < D; k++)
+		{
+			for (int i = 0; i < 32 && now + i + k * 32 < end; i++)
+			{
+				for (int j = 0; j < C; j++)
+				{
+					ans[j] += shared_val[i][k] * vin[shared_idx[i][k] * INFEATURE + indy + j * 32];
+				}
+			}
+		}
     }
     for (int j = 0; j < C; j++)
     {
