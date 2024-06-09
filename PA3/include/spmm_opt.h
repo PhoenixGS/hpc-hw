@@ -16,6 +16,8 @@ public:
 
     virtual void run(float *vin, float *vout);
 
+	virtual bool check_dataset();
+
     void edgesort();
 
     void neighbor_grouping(int neighbor_num);
